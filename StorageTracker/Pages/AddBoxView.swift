@@ -295,14 +295,7 @@ struct AddBoxView: View {
     
 
     func suggestBoxName(from items: [String], completion: @escaping (String?) -> Void) {
-        var apiKey: String {
-            if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
-               let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
-               let key = dict["OPENAI_API_KEY"] as? String {
-                return key
-            }
-            return ""
-        }
+        let apiKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
 
         let prompt = "Suggest a short and simple storage box name based on these items: \(items.joined(separator: ", ")). Keep it max 3 words."
