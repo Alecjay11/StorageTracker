@@ -17,6 +17,6 @@ StorageTracker is an iOS app designed to help users manage and keep track of sto
 -  Polished, light-mode friendly UI with smooth animations
 -  ChatGPT API calling capabilities 
 
-Link to Video:
+## Link to Video:
 
-https://drive.google.com/file/d/1mZJtKdqQ97T-9_OTE1aKj2XSmYY2Cdf9/view?usp=sharing
+https://drive.google.com/file/d/1uF7ph2EZQpA-S9giakMj-bdJiKc8zWPz/view?usp=sharing
