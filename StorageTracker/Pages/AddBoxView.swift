@@ -27,7 +27,7 @@ struct AddBoxView: View {
     @State private var availableLocations: [String] = ["Basement", "Garage", "Attic"]
     @State private var isAddingNewLocation = false
     @State private var newLocationText: String = ""
-
+    @State private var isShowingLocationPicker = false
     var isEditing: Bool {
         existingBox != nil
     }
@@ -37,10 +37,27 @@ struct AddBoxView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    TextField("Box Name", text: $boxName)
-                        .textFieldStyle(.roundedBorder)
+                    VStack(spacing: 4) {
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundStyle(Color.gray.opacity(0.5))
 
-                    Text("Photos")
+                        TextField("Box Name", text: $boxName)
+                            .font(.largeTitle)
+                            .padding(.vertical, 8)
+                            .multilineTextAlignment(.leading)
+                            .textInputAutocapitalization(.words)
+                            .disableAutocorrection(true)
+                            .padding(.horizontal)
+
+                        Rectangle()
+                            .frame(height: 1)
+                            .foregroundStyle(Color.gray.opacity(0.5))
+                        
+                    }
+                    
+
+                    Text("Photos:")
                         .font(.headline)
 
                     ScrollView(.horizontal) {
@@ -91,48 +108,36 @@ struct AddBoxView: View {
                         .padding(.horizontal)
                     }
                     .frame(height: 120)
+                    
                     Group {
-                        Text("Location")
-                            .font(.headline)
+                        HStack(alignment: .center) {
+                            Text("Location:")
+                                .font(.headline)
 
-                        Picker("Select a Location", selection: $selectedLocation) {
-                            ForEach(availableLocations, id: \.self) { location in
-                                Text(location).tag(location)
-                            }
-                            Text("➕ Add new location...").tag("add_new")
-                        }
-                        .pickerStyle(.menu)
+                            Spacer(minLength: 10)
 
-                        .onChange(of: selectedLocation) { newvalue, _ in
-                            if newvalue == "add_new" {
-                                isAddingNewLocation = true
-                                selectedLocation = ""
+                            NavigationLink(destination: LocationPickerView(
+                                availableLocations: $availableLocations,
+                                selectedLocation: $selectedLocation
+                            )) {
+                                HStack {
+                                    Text(selectedLocation.isEmpty ? "Select..." : selectedLocation)
+                                        .foregroundColor(selectedLocation.isEmpty ? .gray : .blue)
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(8)
                             }
                         }
                         
 
-                        if isAddingNewLocation {
-                            HStack {
-                                TextField("New location", text: $newLocationText)
-                                    .textFieldStyle(.roundedBorder)
-
-                                Button("Add") {
-                                    if !newLocationText.trimmingCharacters(in: .whitespaces).isEmpty {
-                                        availableLocations.append(newLocationText)
-                                        selectedLocation = newLocationText
-                                        newLocationText = ""
-                                        isAddingNewLocation = false
-                                    }
-                                }
-                            }
-                        }
-
-                        TextField("Detailed location (e.g. 'back left shelf')", text: $locationNotes)
+                        TextField("Location details (e.g. 'top shelf, under the fan')", text: $locationNotes)
                             .textFieldStyle(.roundedBorder)
                     }
 
 
-                    Text("Items")
+
+                    Text("Items:")
                         .font(.headline)
 
                     VStack(spacing: 12) {

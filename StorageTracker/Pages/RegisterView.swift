@@ -10,131 +10,124 @@ import FirebaseAuth
 import FirebaseFirestore
 
 struct RegisterView: View {
-    enum ErrorType: String, CaseIterable {
-        case notSamePassword = "Passwords do not match"
-        case invalidEmail = "Invalid email format"
-        case emptyFields = "All fields must be filled"
-        case noError = ""
-    }
-
     @Environment(\.dismiss) private var dismiss
-    @State private var fName: String = ""
-    @State private var lName: String = ""
-    @State private var email: String = ""
-    @State private var password: String = ""
-    @State private var passwordConfirm: String = ""
+
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var email = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var errorMessage = ""
     @State private var showingAlert = false
 
     var body: some View {
-        List {
-            Group {
-                textField(label: "First Name", binding: $fName)
-                textField(label: "Last Name", binding: $lName)
-                textField(label: "Email", binding: $email)
-                secureField(label: "Password", binding: $password)
-                secureField(label: "Confirm Password", binding: $passwordConfirm)
-            }
-            .listRowSeparator(.hidden)
+        NavigationStack {
+            VStack(spacing: 20) {
+                Spacer()
+                Image(systemName: "shippingbox.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80)
+                    .foregroundColor(.lightBlue)
+                    .padding(.top, 30)
 
-            Text(errorMessage)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .frame(height: 40, alignment: .center)
-        }
-        .listStyle(.plain)
-        .navigationBarBackButtonHidden()
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Cancel") {
-                    dismiss()
+                Text("Create Account")
+                    .font(.largeTitle)
+                    .bold()
+                    .foregroundColor(.white)
+                    .padding(.bottom)
+
+                Group {
+                    
+                    TextField("First Name", text: $firstName)
+                    TextField("Last Name", text: $lastName)
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    SecureField("Password", text: $password)
+                    SecureField("Confirm Password", text: $confirmPassword)
                 }
-            }
-            ToolbarItem(placement: .bottomBar) {
-                Button("Create Account") {
+                .textFieldStyle(.roundedBorder)
+                .padding(.horizontal)
+
+                Button(action: {
                     register()
+                }) {
+                    Text("Register")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .padding(.horizontal)
                 }
+                .padding(.top, 10)
+
+                Button(action: {
+                    dismiss()
+                }) {
+                    Text("Already have an account? Sign In")
+                        .font(.footnote)
+                        .foregroundColor(.blue)
+                        .underline()
+                }
+                .padding(.top, 5)
+
+                Spacer()
+                Spacer()
             }
-        }
-        .alert("Registration Error", isPresented: $showingAlert) {
-            Button("OK", role: .cancel) {}
-        }
-    }
-
-    func textField(label: String, binding: Binding<String>) -> some View {
-        VStack(alignment: .leading) {
-            Text(label)
-                .foregroundStyle(.black.opacity(0.75))
-            TextField("", text: binding)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 218)
-        }
-    }
-
-    func secureField(label: String, binding: Binding<String>) -> some View {
-        VStack(alignment: .leading) {
-            Text(label)
-                .foregroundStyle(.black.opacity(0.75))
-            SecureField("", text: binding)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 218)
+            
+            .alert(errorMessage, isPresented: $showingAlert) {
+                Button("OK", role: .cancel) {}
+            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .background(Gradient(colors: [Color.darkBlue, Color.lightBlue])).ignoresSafeArea()
         }
     }
 
     func register() {
-        let error = properReg()
-        if error != .noError {
-            errorMessage = error.rawValue
+        guard !firstName.isEmpty, !lastName.isEmpty, !email.isEmpty, !password.isEmpty else {
+            errorMessage = "Please fill out all fields."
             showingAlert = true
             return
         }
 
-        // 🔐 Firebase Auth
-        Auth.auth().createUser(withEmail: email, password: password) { result, authError in
-            if let authError = authError {
-                errorMessage = "Auth Error: \(authError.localizedDescription)"
+        guard password == confirmPassword else {
+            errorMessage = "Passwords do not match."
+            showingAlert = true
+            return
+        }
+
+        Auth.auth().createUser(withEmail: email, password: password) { authResult, error in
+            if let error = error {
+                errorMessage = "Registration error: \(error.localizedDescription)"
                 showingAlert = true
                 return
             }
 
-            guard let userID = result?.user.uid else {
-                errorMessage = "User ID not found"
-                showingAlert = true
-                return
-            }
-
-            // 🧠 Firebase Firestore
+            guard let uid = authResult?.user.uid else { return }
             let db = Firestore.firestore()
-            let userData: [String: Any] = [
-                "firstName": fName,
-                "lastName": lName,
-                "email": email
-            ]
 
-            db.collection("users").document(userID).setData(userData) { firestoreError in
-                if let firestoreError = firestoreError {
-                    errorMessage = "Firestore Error: \(firestoreError.localizedDescription)"
-                    showingAlert = true
+            db.collection("users").document(uid).setData([
+                "firstName": firstName,
+                "lastName": lastName,
+                "email": email,
+                "availableLocations": ["Basement", "Garage", "Attic"]
+            ]) { error in
+                if let error = error {
+                    print("Error saving user info: \(error.localizedDescription)")
                 } else {
+                    print("✅ User registered and saved.")
                     dismiss()
                 }
             }
         }
     }
-
-    func properReg() -> ErrorType {
-        if fName.isEmpty || lName.isEmpty || email.isEmpty || password.isEmpty || passwordConfirm.isEmpty {
-            return .emptyFields
-        } else if password != passwordConfirm {
-            return .notSamePassword
-        } else if !email.contains("@") {
-            return .invalidEmail
-        }
-        return .noError
-    }
 }
-
 
 #Preview {
     RegisterView()
 }
+

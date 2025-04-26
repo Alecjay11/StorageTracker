@@ -1,0 +1,14 @@
+# Firebase config (protect this!)
+GoogleService-Info.plist
+
+# Xcode cruft
+DerivedData/
+build/
+
+# User settings
+*.xcuserdata/
+*.xcuserstate
+
+# macOS junk
+.DS_Store
+

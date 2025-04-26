@@ -16,6 +16,7 @@ struct SignInView: View {
     
     let Colors = [Color.darkBlue, Color.lightBlue]
     
+
     @State private var enteredEmail = ""
     @State private var enteredPass = ""
     @State private var signInMessage = ""
@@ -106,6 +107,7 @@ struct SignInView: View {
             }
             .background(Gradient(colors: Colors))
         }
+        
         .alert(signInMessage, isPresented: $showingAlert) {
             Button("OK", role: .cancel) {}
         }
@@ -117,10 +119,16 @@ struct SignInView: View {
                 sheetIsPresented = true
             }
         }
+        .onChange(of: sheetIsPresented){
+            enteredEmail = ""
+            enteredPass = ""
+            signInMessage = ""
+        }
         .fullScreenCover(isPresented: $sheetIsPresented) {
             HomePageView()
         }
     }
+    
     
     func login() {
         Auth.auth().signIn(withEmail: enteredEmail, password: enteredPass) { result, error in
@@ -143,7 +151,6 @@ struct SignInView: View {
                     showingAlert = true
                     return
                 }
-                
                 guard let data = snapshot?.data() else {
                     signInMessage = "User data not found"
                     showingAlert = true
@@ -173,6 +180,7 @@ struct SignInView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     sheetIsPresented = true
                 }
+                
             }
         }
     }
