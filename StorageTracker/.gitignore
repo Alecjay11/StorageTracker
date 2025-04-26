@@ -1,5 +1,7 @@
 # Firebase config (protect this!)
 GoogleService-Info.plist
+Secrets.plist
+
 
 # Xcode cruft
 DerivedData/
