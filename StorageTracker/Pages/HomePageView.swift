@@ -7,22 +7,27 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseStorage
 
 struct HomePageView: View {
     @State private var currentUser: User = User()
     @State private var sheetIsPresented = false
     @State private var searchQuery: String = ""
     @State private var showingSettingsSidebar = false
+    @State private var selectedLocationFilter: String = "All Locations"
     
     var filteredBoxes: [Box] {
-        if searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-            return currentUser.boxes
-        } else {
-            return currentUser.boxes.filter {
-                $0.name.localizedCaseInsensitiveContains(searchQuery) ||
-                $0.items.contains(where: { $0.localizedCaseInsensitiveContains(searchQuery) })
+            currentUser.boxes.filter { box in
+                let matchesSearch = searchQuery.trimmingCharacters(in: .whitespaces).isEmpty ||
+                    box.name.localizedCaseInsensitiveContains(searchQuery) ||
+                    box.items.contains(where: { $0.localizedCaseInsensitiveContains(searchQuery) })
+                
+                let matchesLocation = selectedLocationFilter == "All Locations" ||
+                    box.location == selectedLocationFilter
+                
+                return matchesSearch && matchesLocation
             }
-        }
+
     }
     
     var body: some View {
@@ -39,10 +44,22 @@ struct HomePageView: View {
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
                     
-                    Text("Boxes")
-                        .font(.title2)
-                        .foregroundColor(.gray)
+                    HStack {
+                        Text("Boxes")
+                            .font(.title2)
+                            .foregroundColor(.gray)
+                            .padding(.horizontal)
+                        Spacer()
+                        Picker("Filter by Location", selection: $selectedLocationFilter) {
+                            Text("All Locations").tag("All Locations")
+                            ForEach(currentUser.availableLocations, id: \.self) { location in
+                                Text(location).tag(location)
+                            }
+                        }
+                        .pickerStyle(.menu)
                         .padding(.horizontal)
+                    }
+                    
                     
                     List {
                         ForEach(filteredBoxes, id: \.id) { box in
@@ -58,6 +75,12 @@ struct HomePageView: View {
                                             .lineLimit(1)
                                             .truncationMode(.tail)
                                     }
+                                }
+                                .swipeActions {
+                                        Button("Delete", role: .destructive){
+                                            deleteBox(box)
+                                        }
+                                    
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -192,6 +215,41 @@ struct HomePageView: View {
             }
         }
     }
+    func deleteBox(_ box: Box) {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("No authenticated user")
+            return
+        }
+        
+        let db = Firestore.firestore()
+        let storage = Storage.storage()
+
+        let boxRef = db.collection("users").document(uid).collection("boxes").document(box.id)
+        boxRef.delete { error in
+            if let error = error {
+                print("❌ Error deleting box from Firestore: \(error.localizedDescription)")
+            } else {
+                print("✅ Box deleted from Firestore")
+                
+                for (index, _) in box.photoURLs.enumerated() {
+                    let path = "users/\(uid)/boxes/\(box.id)/photo_\(index).jpg"
+                    let storageRef = storage.reference().child(path)
+                    storageRef.delete { error in
+                        if let error = error {
+                            print("⚠️ Warning: Could not delete image: \(error.localizedDescription)")
+                        } else {
+                            print("✅ Deleted image \(index) from Storage")
+                        }
+                    }
+                }
+                
+                if let index = currentUser.boxes.firstIndex(where: { $0.id == box.id }) {
+                    currentUser.boxes.remove(at: index)
+                }
+            }
+        }
+    }
+
     
 }
 

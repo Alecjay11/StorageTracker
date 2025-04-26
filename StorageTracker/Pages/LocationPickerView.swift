@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 struct LocationPickerView: View {
     @Binding var availableLocations: [String]
@@ -51,19 +53,41 @@ struct LocationPickerView: View {
                     .padding()
 
                 Button("Add Location") {
-                    if !newLocationName.trimmingCharacters(in: .whitespaces).isEmpty {
-                        availableLocations.append(newLocationName)
-                        selectedLocation = newLocationName
+                    let trimmed = newLocationName.trimmingCharacters(in: .whitespaces)
+
+                    if !trimmed.isEmpty {
+                        if !availableLocations.contains(trimmed) {
+                            availableLocations.append(trimmed)
+                            availableLocations.sort()
+                            saveAvailableLocations() 
+                        }
+
+                        selectedLocation = trimmed
                         newLocationName = ""
                         isAddingNewLocation = false
-                        dismiss()
                     }
                 }
+
                 .buttonStyle(.borderedProminent)
             }
             .padding()
         }
     }
+    
+    func saveAvailableLocations() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).updateData([
+            "availableLocations": availableLocations
+        ]) { error in
+            if let error = error {
+                print("Error saving available locations: \(error.localizedDescription)")
+            } else {
+                print("✅ Available locations updated in Firestore")
+            }
+        }
+    }
+
 }
 
 

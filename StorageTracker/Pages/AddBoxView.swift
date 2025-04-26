@@ -7,7 +7,9 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseStorage
+import FirebaseAuth
 import PhotosUI
+import Foundation
 
 struct AddBoxView: View {
     @Environment(\.dismiss) private var dismiss
@@ -28,9 +30,11 @@ struct AddBoxView: View {
     @State private var isAddingNewLocation = false
     @State private var newLocationText: String = ""
     @State private var isShowingLocationPicker = false
+    
     var isEditing: Bool {
         existingBox != nil
     }
+   
     
 
     var body: some View {
@@ -42,13 +46,27 @@ struct AddBoxView: View {
                             .frame(height: 1)
                             .foregroundStyle(Color.gray.opacity(0.5))
 
-                        TextField("Box Name", text: $boxName)
-                            .font(.largeTitle)
-                            .padding(.vertical, 8)
-                            .multilineTextAlignment(.leading)
-                            .textInputAutocapitalization(.words)
-                            .disableAutocorrection(true)
-                            .padding(.horizontal)
+                        HStack {
+                            TextField("Box Name", text: $boxName)
+                                .font(.title)
+                                .padding(.vertical, 8)
+                                .multilineTextAlignment(.leading)
+                                .textInputAutocapitalization(.words)
+                                .disableAutocorrection(true)
+                                .padding(.horizontal)
+                            Button(action: {
+                                    suggestBoxName(from: items.filter { !$0.isEmpty }) { suggestedName in
+                                        if let name = suggestedName {
+                                            DispatchQueue.main.async {
+                                                boxName = name
+                                            }
+                                        }
+                                    }
+                                }) {
+                                    Image(systemName: "wand.and.sparkles")
+                                        .padding(8)
+                                }
+                        }
 
                         Rectangle()
                             .frame(height: 1)
@@ -116,10 +134,7 @@ struct AddBoxView: View {
 
                             Spacer(minLength: 10)
 
-                            NavigationLink(destination: LocationPickerView(
-                                availableLocations: $availableLocations,
-                                selectedLocation: $selectedLocation
-                            )) {
+                            NavigationLink(destination: LocationPickerView(availableLocations: $availableLocations, selectedLocation: $selectedLocation)) {
                                 HStack {
                                     Text(selectedLocation.isEmpty ? "Select..." : selectedLocation)
                                         .foregroundColor(selectedLocation.isEmpty ? .gray : .blue)
@@ -179,6 +194,7 @@ struct AddBoxView: View {
             }
             .navigationTitle(existingBox == nil ? "Add Box" : "Edit Box")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
@@ -196,7 +212,7 @@ struct AddBoxView: View {
                 }
             }
             .onAppear {
-    
+                fetchAvailableLocations()
                 guard !hasLoadedImages, let box = existingBox else { return }
                 boxName = box.name
                 items = box.items
@@ -213,6 +229,21 @@ struct AddBoxView: View {
         }
     }
 
+    func fetchAvailableLocations() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).getDocument { snapshot, error in
+            guard let data = snapshot?.data(), error == nil else {
+                print("Error fetching locations: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            if let locations = data["availableLocations"] as? [String] {
+                availableLocations = locations
+            } else {
+                availableLocations = ["Basement", "Garage", "Attic"]
+            }
+        }
+    }
     func saveBoxToFirebase() {
         let db = Firestore.firestore()
         let storage = Storage.storage()
@@ -260,6 +291,60 @@ struct AddBoxView: View {
                 }
             }
         }
+    }
+    
+
+    func suggestBoxName(from items: [String], completion: @escaping (String?) -> Void) {
+        var apiKey: String {
+            if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
+               let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+               let key = dict["OPENAI_API_KEY"] as? String {
+                return key
+            }
+            return ""
+        }
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        let prompt = "Suggest a short and simple storage box name based on these items: \(items.joined(separator: ", ")). Keep it max 3 words."
+
+        let body: [String: Any] = [
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                ["role": "system", "content": "You are a creative assistant that names storage boxes based on contents."],
+                ["role": "user", "content": prompt]
+            ],
+            "max_tokens": 20,
+            "temperature": 0.7
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Network error: \(error?.localizedDescription ?? "Unknown error")")
+                completion(nil)
+                return
+            }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let choices = json["choices"] as? [[String: Any]],
+               let message = choices.first?["message"] as? [String: Any],
+               let content = message["content"] as? String {
+                let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let cleaned = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+
+                completion(cleaned)
+
+            } else {
+                print("Failed to parse response")
+                completion(nil)
+            }
+        }.resume()
     }
 
     func loadImagesFromURLs(urls: [String]) async {

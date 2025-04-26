@@ -96,12 +96,6 @@ struct SignInView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 
-                Button {
-                    // Add password reset logic here
-                } label: {
-                    Text("Forgot Password?")
-                        .font(.caption)
-                }
                 
                 Spacer()
             }
